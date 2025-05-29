@@ -1,0 +1,138 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Number Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="rigMenu" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-4 text-center">Number Generator Setup</h1>
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Number Range (Min - Max):</label>
+            <div class="flex space-x-2">
+                <input type="number" id="minVal" value="1" class="w-full p-2 border rounded">
+                <input type="number" id="maxVal" value="100" class="w-full p-2 border rounded">
+            </div>
+        </div>
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Initial Sequence (comma-separated):</label>
+            <input type="text" id="riggedValues" placeholder="e.g., 5,10,15" class="w-full p-2 border rounded">
+        </div>
+        <button onclick="startGenerator()" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Start</button>
+    </div>
+
+    <div id="generator" class="hidden bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-4 text-center">Random Number Generator</h1>
+        <div class="mb-4 text-center text-sm text-gray-600">
+            Range: <span id="rangeDisplay"></span>
+        </div>
+        <button onclick="generateNumber()" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Generate Number</button>
+        <div id="result" class="text-lg font-semibold text-center mt-4">Result: -</div>
+    </div>
+
+    <script>
+        class RiggableRandom {
+            constructor() {
+                this.riggedValues = [];
+                this.riggedIndex = 0;
+                this.isRigged = false;
+                this.minVal = 1;
+                this.maxVal = 100;
+            }
+
+            setRiggedValues(values, minVal, maxVal) {
+                this.riggedValues = values.map(Number).filter(n => !isNaN(n) && n >= minVal && n <= maxVal);
+                this.riggedIndex = 0;
+                this.isRigged = this.riggedValues.length > 0;
+                this.minVal = minVal;
+                this.maxVal = maxVal;
+            }
+
+            getRandom() {
+                if (this.isRigged && this.riggedIndex < this.riggedValues.length) {
+                    const value = this.riggedValues[this.riggedIndex];
+                    this.riggedIndex++;
+                    if (this.riggedIndex >= this.riggedValues.length) {
+                        this.isRigged = false; // Switch to random after exhausting rigged values
+                    }
+                    return value;
+                }
+                return Math.floor(Math.random() * (this.maxVal - this.minVal + 1)) + this.minVal;
+            }
+        }
+
+        const rng = new RiggableRandom();
+
+        function startGenerator() {
+            const minVal = parseInt(document.getElementById('minVal').value);
+            const maxVal = parseInt(document.getElementById('maxVal').value);
+            const riggedInput = document.getElementById('riggedValues').value;
+            const resultDiv = document.getElementById('result');
+
+            if (isNaN(minVal) || isNaN(maxVal) || minVal > maxVal) {
+                resultDiv.textContent = "Result: Invalid range";
+                return;
+            }
+
+            const values = riggedInput.trim() ? riggedInput.split(',').map(s => s.trim()) : [];
+            rng.setRiggedValues(values, minVal, maxVal);
+
+            document.getElementById('rigMenu').classList.add('hidden');
+            document.getElementById('generator').classList.remove('hidden');
+            document.getElementById('rangeDisplay').textContent = `${minVal} - ${maxVal}`;
+            document.getElementById('result').textContent = "Result: -";
+        }
+
+        function generateNumber() {
+            const resultDiv = document.getElementById('result');
+            try {
+                const number = rng.getRandom();
+                resultDiv.textContent = `Result: ${number}`;
+            } catch (error) {
+                resultDiv.textContent = `Result: Error - ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
